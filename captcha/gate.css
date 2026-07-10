@@ -9,62 +9,42 @@ html.lsr-gate-pending body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: #0a0a0a;
-  color: #fff;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #fff;
+  color: #313131;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-.lsr-captcha-card {
+.lsr-captcha-page-main {
   width: 100%;
-  max-width: 420px;
-  padding: 32px 28px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  background: #141414;
+  max-width: 640px;
+  padding: 32px 20px;
   text-align: center;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
 }
 
-.lsr-captcha-logo {
-  margin: 0 0 8px;
-  font-size: 13px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.lsr-captcha-title {
-  margin: 0 0 10px;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.lsr-captcha-text {
-  margin: 0 0 24px;
-  font-size: 14px;
+.lsr-captcha-heading {
+  margin: 0 0 28px;
+  font-size: 16px;
+  font-weight: 400;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.72);
+  color: #313131;
 }
 
 .lsr-captcha-widget {
+  min-height: 65px;
   display: flex;
   justify-content: center;
-  min-height: 65px;
+}
+
+.lsr-captcha-footer {
+  margin: 28px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b6b6b;
 }
 
 .lsr-captcha-error {
-  margin-top: 16px;
+  margin: 16px 0 0;
   font-size: 13px;
-  color: #ff6b6b;
-}
-
-.lsr-captcha-hp {
-  position: absolute;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
+  line-height: 1.4;
+  color: #b42318;
 }

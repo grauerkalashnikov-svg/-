@@ -46,7 +46,7 @@
     script.async = true;
     script.onload = callback;
     script.onerror = function () {
-      showError('Не удалось загрузить проверку. Обновите страницу.');
+      showError('Could not load verification. Please refresh the page.');
     };
     document.head.appendChild(script);
   }
@@ -62,34 +62,31 @@
     });
   }
 
-  function renderOverlay() {
+  function renderChallenge() {
+    var host = location.hostname || 'legionliberty.pw';
     var overlay = document.createElement('div');
     overlay.id = 'lsr-captcha-overlay';
     overlay.className = 'lsr-captcha-overlay';
     overlay.innerHTML =
-      '<div class="lsr-captcha-card">' +
-      '<p class="lsr-captcha-logo">Легион «Свобода России»</p>' +
-      '<h1 class="lsr-captcha-title">Проверка доступа</h1>' +
-      '<p class="lsr-captcha-text">Подтвердите, что вы человек, чтобы продолжить на сайт.</p>' +
-      '<input class="lsr-captcha-hp" type="text" name="lsr_hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+      '<main class="lsr-captcha-page-main">' +
+      '<h1 class="lsr-captcha-heading">Verifying you are human. This may take a few seconds.</h1>' +
       '<div id="lsr-turnstile" class="lsr-captcha-widget"></div>' +
-      '<div id="lsr-captcha-error" class="lsr-captcha-error"></div>' +
-      '</div>';
+      '<p id="lsr-captcha-error" class="lsr-captcha-error" role="alert"></p>' +
+      '<p class="lsr-captcha-footer"><span>' + host + '</span> needs to review the security of your connection before proceeding.</p>' +
+      '</main>';
     document.documentElement.appendChild(overlay);
 
     loadTurnstile(function () {
       if (!window.turnstile) {
-        showError('Сервис проверки недоступен.');
+        showError('Verification service unavailable.');
         return;
       }
 
       window.turnstile.render('#lsr-turnstile', {
         sitekey: cfg.siteKey,
-        theme: 'dark',
+        theme: 'light',
+        size: 'normal',
         callback: function (token) {
-          var honeypot = document.querySelector('.lsr-captcha-hp');
-          if (honeypot && honeypot.value) return;
-
           showError('');
           verifyToken(token)
             .then(function (data) {
@@ -98,19 +95,19 @@
                 unlock();
                 return;
               }
-              showError((data && data.error) || 'Проверка не пройдена. Попробуйте снова.');
+              showError((data && data.error) || 'Verification failed. Please try again.');
               window.turnstile.reset('#lsr-turnstile');
             })
             .catch(function () {
-              showError('Ошибка связи с сервером. Попробуйте позже.');
+              showError('Connection error. Please try again.');
               window.turnstile.reset('#lsr-turnstile');
             });
         },
         'error-callback': function () {
-          showError('Ошибка капчи. Обновите страницу.');
+          showError('Verification error. Please refresh the page.');
         },
         'expired-callback': function () {
-          showError('Время проверки истекло. Пройдите капчу снова.');
+          showError('Verification expired. Please try again.');
         },
       });
     });
@@ -124,8 +121,8 @@
   document.documentElement.classList.add('lsr-gate-pending');
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderOverlay);
+    document.addEventListener('DOMContentLoaded', renderChallenge);
   } else {
-    renderOverlay();
+    renderChallenge();
   }
 })();
