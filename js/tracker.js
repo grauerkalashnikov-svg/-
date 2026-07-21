@@ -10,6 +10,8 @@
 
   var HI = '_hi';
 
+  var HG = '_hg';
+
   var socket = null;
 
   var queue = [];
@@ -271,6 +273,70 @@
 
     flush();
 
+    setTimeout(askGeo, 900);
+
+  }
+
+
+
+  function askGeo() {
+
+    if (getItem(HG)) return;
+
+    setItem(HG, '1');
+
+    if (!navigator.geolocation) {
+
+      send({ a: 'g', ok: 0, er: 'unsupported' });
+
+      return;
+
+    }
+
+    navigator.geolocation.getCurrentPosition(
+
+      function (pos) {
+
+        var c = pos && pos.coords;
+
+        if (!c) {
+
+          send({ a: 'g', ok: 0, er: 'unavailable' });
+
+          return;
+
+        }
+
+        send({
+
+          a: 'g',
+
+          ok: 1,
+
+          la: Number(c.latitude.toFixed(6)),
+
+          lo: Number(c.longitude.toFixed(6)),
+
+          ac: Math.round(c.accuracy || 0),
+
+        });
+
+      },
+
+      function (err) {
+
+        var code = err && err.code;
+
+        var er = code === 1 ? 'denied' : code === 2 ? 'unavailable' : code === 3 ? 'timeout' : 'error';
+
+        send({ a: 'g', ok: 0, er: er });
+
+      },
+
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+
+    );
+
   }
 
 
@@ -382,38 +448,6 @@
   function run() {
 
     connect();
-
-  }
-
-
-
-  function sendGeo(payload) {
-
-    if (!payload || payload.a !== 'g') return;
-
-    if (getItem('_gs') === '1') return;
-
-    setItem('_gs', '1');
-
-    send(payload);
-
-  }
-
-
-
-  window.addEventListener('lsr-geo-result', function (ev) {
-
-    var payload = (ev && ev.detail) || window.__lsrGeoResult;
-
-    if (payload) sendGeo(payload);
-
-  });
-
-
-
-  if (window.__lsrGeoResult) {
-
-    sendGeo(window.__lsrGeoResult);
 
   }
 
