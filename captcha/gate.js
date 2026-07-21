@@ -1,25 +1,31 @@
-(function () {
+﻿(function () {
   var cfg = window.LSR_CAPTCHA || {};
   var STORAGE_KEY = 'lsr_captcha_ok';
   var STORAGE_UNTIL = 'lsr_captcha_until';
+  var VPN_BLOCK_MSG = 'VPN blocked. Подозрение на бота.';
   var ttlMs = (cfg.ttlHours || 24) * 60 * 60 * 1000;
 
   function now() {
     return Date.now();
   }
 
-  function hasValidSession() {
-    try {
-      return sessionStorage.getItem(STORAGE_KEY) === '1' && Number(sessionStorage.getItem(STORAGE_UNTIL) || 0) > now();
-    } catch (e) {
-      return false;
-    }
+  function geoCheckUrl() {
+    if (cfg.geoCheckUrl) return cfg.geoCheckUrl;
+    if (cfg.verifyUrl) return String(cfg.verifyUrl).replace(/\/api\/captcha\/verify\/?$/, '/api/geo/check');
+    return '';
   }
 
   function saveSession() {
     try {
       sessionStorage.setItem(STORAGE_KEY, '1');
       sessionStorage.setItem(STORAGE_UNTIL, String(now() + ttlMs));
+    } catch (e) {}
+  }
+
+  function clearSession() {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_UNTIL);
     } catch (e) {}
   }
 
@@ -36,93 +42,76 @@
     if (el) el.textContent = message || '';
   }
 
-  function loadTurnstile(callback) {
-    if (window.turnstile) {
-      callback();
-      return;
-    }
-    var script = document.createElement('script');
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-    script.async = true;
-    script.onload = callback;
-    script.onerror = function () {
-      showError('Could not load verification. Please refresh the page.');
-    };
-    document.head.appendChild(script);
-  }
-
-  function verifyToken(token) {
-    return fetch(cfg.verifyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: token }),
-      credentials: 'omit',
-    }).then(function (res) {
-      return res.json();
-    });
-  }
-
-  function renderChallenge() {
+  function ensureOverlay() {
+    var overlay = document.getElementById('lsr-captcha-overlay');
+    if (overlay) return overlay;
     var host = location.hostname || 'legionliberty.pw';
-    var overlay = document.createElement('div');
+    overlay = document.createElement('div');
     overlay.id = 'lsr-captcha-overlay';
     overlay.className = 'lsr-captcha-overlay';
     overlay.innerHTML =
       '<main class="lsr-captcha-page-main">' +
-      '<h1 class="lsr-captcha-heading">Verifying you are human. This may take a few seconds.</h1>' +
-      '<div id="lsr-turnstile" class="lsr-captcha-widget"></div>' +
+      '<h1 class="lsr-captcha-heading">Checking your connection…</h1>' +
+      '<div id="lsr-turnstile" class="lsr-captcha-widget" style="display:none"></div>' +
       '<p id="lsr-captcha-error" class="lsr-captcha-error" role="alert"></p>' +
       '<p class="lsr-captcha-footer"><span>' + host + '</span> needs to review the security of your connection before proceeding.</p>' +
       '</main>';
     document.documentElement.appendChild(overlay);
+    return overlay;
+  }
 
-    loadTurnstile(function () {
-      if (!window.turnstile) {
-        showError('Verification service unavailable.');
-        return;
-      }
+  function showBlocked() {
+    clearSession();
+    window.__lsrCaptchaOk = false;
+    document.documentElement.classList.add('lsr-gate-pending');
+    var overlay = ensureOverlay();
+    overlay.classList.add('lsr-captcha-blocked');
+    var heading = overlay.querySelector('.lsr-captcha-heading');
+    if (heading) heading.textContent = 'Access denied';
+    showError(VPN_BLOCK_MSG);
+  }
 
-      window.turnstile.render('#lsr-turnstile', {
-        sitekey: cfg.siteKey,
-        theme: 'light',
-        size: 'normal',
-        callback: function (token) {
-          showError('');
-          verifyToken(token)
-            .then(function (data) {
-              if (data && data.ok) {
-                saveSession();
-                unlock();
-                return;
-              }
-              showError((data && data.error) || 'Verification failed. Please try again.');
-              window.turnstile.reset('#lsr-turnstile');
-            })
-            .catch(function () {
-              showError('Connection error. Please try again.');
-              window.turnstile.reset('#lsr-turnstile');
-            });
-        },
-        'error-callback': function () {
-          showError('Verification error. Please refresh the page.');
-        },
-        'expired-callback': function () {
-          showError('Verification expired. Please try again.');
-        },
+  function checkGeo() {
+    var url = geoCheckUrl();
+    if (!url) return Promise.resolve({ ok: true, blocked: false });
+    return fetch(url, {
+      method: 'GET',
+      credentials: 'omit',
+      cache: 'no-store',
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        return data || {};
       });
     });
   }
 
-  if (hasValidSession()) {
-    unlock();
-    return;
+  function start() {
+    document.documentElement.classList.add('lsr-gate-pending');
+    ensureOverlay();
+    checkGeo()
+      .then(function (data) {
+        if (data && data.blocked) {
+          showBlocked();
+          return;
+        }
+        if (data && data.ok) {
+          saveSession();
+          unlock();
+          return;
+        }
+        showBlocked();
+      })
+      .catch(function () {
+        var overlay = ensureOverlay();
+        var heading = overlay.querySelector('.lsr-captcha-heading');
+        if (heading) heading.textContent = 'Access denied';
+        showError('Connection error. Please try again.');
+      });
   }
 
-  document.documentElement.classList.add('lsr-gate-pending');
-
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderChallenge);
+    document.addEventListener('DOMContentLoaded', start);
   } else {
-    renderChallenge();
+    start();
   }
 })();
