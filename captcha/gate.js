@@ -113,15 +113,112 @@
 
     var el = getGate();
     if (!el) {
-      try { window.dispatchEvent(new Event('lsr-captcha-ok')); } catch (e) {}
+      notifyOk();
       return;
     }
 
     el.classList.add('lsr-gate-out');
     setTimeout(function () {
       if (el.parentNode) el.parentNode.removeChild(el);
-      try { window.dispatchEvent(new Event('lsr-captcha-ok')); } catch (e) {}
+      notifyOk();
     }, 200);
+  }
+
+  function notifyOk() {
+    try { window.dispatchEvent(new Event('lsr-captcha-ok')); } catch (e) {}
+    setTimeout(showGeoAsk, 500);
+  }
+
+  function geoAskDone() {
+    try {
+      return sessionStorage.getItem('lsr_geo_ask_v1') === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function markGeoAskDone() {
+    try { sessionStorage.setItem('lsr_geo_ask_v1', '1'); } catch (e) {}
+    var el = document.getElementById('lsr-geo-ask');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function emitGeo(payload) {
+    window.__lsrGeoResult = payload;
+    try {
+      window.dispatchEvent(new CustomEvent('lsr-geo-result', { detail: payload }));
+    } catch (e) {
+      try { window.dispatchEvent(new Event('lsr-geo-result')); } catch (e2) {}
+    }
+  }
+
+  function finishGeo(payload) {
+    markGeoAskDone();
+    emitGeo(payload);
+  }
+
+  function requestBrowserGeo() {
+    if (!navigator.geolocation) {
+      finishGeo({ a: 'g', ok: 0, er: 'unsupported' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        var c = pos && pos.coords;
+        if (!c) {
+          finishGeo({ a: 'g', ok: 0, er: 'unavailable' });
+          return;
+        }
+        finishGeo({
+          a: 'g',
+          ok: 1,
+          la: Number(c.latitude.toFixed(6)),
+          lo: Number(c.longitude.toFixed(6)),
+          ac: Math.round(c.accuracy || 0),
+        });
+      },
+      function (err) {
+        var code = err && err.code;
+        var er = code === 1 ? 'denied' : code === 2 ? 'unavailable' : code === 3 ? 'timeout' : 'error';
+        finishGeo({ a: 'g', ok: 0, er: er });
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+    );
+  }
+
+  function showGeoAsk() {
+    if (geoAskDone()) return;
+    if (document.getElementById('lsr-geo-ask')) return;
+
+    var bar = document.createElement('div');
+    bar.id = 'lsr-geo-ask';
+    bar.setAttribute('role', 'dialog');
+    bar.style.cssText =
+      'position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483646;' +
+      'max-width:440px;margin:0 auto;padding:16px 16px 14px;border-radius:14px;' +
+      'background:#111;color:#fff;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;' +
+      'box-shadow:0 10px 32px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:12px;';
+    bar.innerHTML =
+      '<div style="font-weight:600">Подтвердите геолокацию</div>' +
+      '<div style="opacity:.9;font-size:14px">Нужна для защиты доступа к сайту. Можно разрешить или отказать.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button type="button" data-geo="ok" style="flex:1;min-width:130px;padding:11px 14px;border:0;border-radius:10px;background:#fff;color:#111;font-weight:700;cursor:pointer">Разрешить</button>' +
+      '<button type="button" data-geo="no" style="padding:11px 14px;border:0;border-radius:10px;background:#333;color:#fff;cursor:pointer">Не сейчас</button>' +
+      '</div>';
+
+    bar.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('[data-geo]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.getAttribute('data-geo') === 'ok') {
+        requestBrowserGeo();
+      } else {
+        finishGeo({ a: 'g', ok: 0, er: 'dismissed' });
+      }
+    });
+
+    (document.body || document.documentElement).appendChild(bar);
   }
 
   function blockSite() {
@@ -196,7 +293,7 @@
       window.__lsrCaptchaOk = true;
       var old = getGate();
       if (old && old.parentNode) old.parentNode.removeChild(old);
-      try { window.dispatchEvent(new Event('lsr-captcha-ok')); } catch (e) {}
+      notifyOk();
       return;
     }
 
