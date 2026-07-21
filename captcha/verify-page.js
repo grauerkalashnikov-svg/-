@@ -15,6 +15,10 @@
     return '';
   }
 
+  function hostName() {
+    return location.hostname || 'legionliberty.pw';
+  }
+
   function getNext() {
     try {
       var params = new URLSearchParams(location.search);
@@ -40,23 +44,48 @@
     } catch (e) {}
   }
 
-  function showError(message) {
-    var el = document.getElementById('lsr-captcha-error');
-    if (el) el.textContent = message || '';
+  function redirectNext() {
+    location.replace(getNext());
+  }
+
+  function renderPanel(opts) {
+    document.body.className = 'lsr-captcha-page ' + (opts.state || '');
+    document.body.innerHTML =
+      '<main class="lsr-captcha-page-main">' +
+      '<div class="lsr-captcha-panel-bar" aria-hidden="true"></div>' +
+      '<div class="lsr-captcha-panel-body">' +
+      '<div class="lsr-captcha-code">' + (opts.code || 'SEC') + '</div>' +
+      '<h1 class="lsr-captcha-heading">' + (opts.title || '') + '</h1>' +
+      '<p class="lsr-captcha-lead">' + (opts.lead || '') + '</p>' +
+      '<div class="lsr-captcha-reason">' +
+      '<span class="lsr-captcha-reason-label">Причина отказа</span>' +
+      '<p id="lsr-captcha-error" class="lsr-captcha-error" role="alert">' + (opts.reason || '') + '</p>' +
+      '</div>' +
+      '<p class="lsr-captcha-meta">Хост: <strong>' + hostName() + '</strong><br>Запрос заблокирован системой безопасности.</p>' +
+      '</div></main>';
   }
 
   function showBlocked() {
     clearSession();
-    document.body.classList.add('lsr-captcha-blocked');
-    var heading = document.querySelector('.lsr-captcha-heading');
-    if (heading) heading.textContent = 'Access denied';
-    var widget = document.getElementById('lsr-turnstile');
-    if (widget) widget.style.display = 'none';
-    showError(VPN_BLOCK_MSG);
+    document.title = '403 — Access Denied';
+    renderPanel({
+      state: 'lsr-captcha-blocked',
+      code: '403 Forbidden',
+      title: 'Доступ запрещён',
+      lead: 'Ваш запрос отклонен политикой безопасности. Доступ к ресурсу ограничен.',
+      reason: VPN_BLOCK_MSG,
+    });
   }
 
-  function redirectNext() {
-    location.replace(getNext());
+  function showConnError() {
+    document.title = '503 — Unavailable';
+    renderPanel({
+      state: 'lsr-captcha-blocked',
+      code: '503 Unavailable',
+      title: 'Сервис временно недоступен',
+      lead: 'Не удалось выполнить проверку безопасности. Повторите попытку позже.',
+      reason: 'Connection error. Please try again.',
+    });
   }
 
   function checkGeo() {
@@ -74,14 +103,14 @@
   }
 
   function start() {
-    var hostEl = document.getElementById('lsr-captcha-host');
-    if (hostEl) hostEl.textContent = location.hostname || 'legionliberty.pw';
-
-    var widget = document.getElementById('lsr-turnstile');
-    if (widget) widget.style.display = 'none';
-
-    var heading = document.querySelector('.lsr-captcha-heading');
-    if (heading) heading.textContent = 'Checking your connection…';
+    document.title = 'Security Check';
+    renderPanel({
+      state: 'lsr-captcha-checking',
+      code: 'Check',
+      title: 'Проверка соединения',
+      lead: 'Система безопасности проверяет источник подключения. Это займёт несколько секунд.',
+      reason: 'Ожидание ответа…',
+    });
 
     checkGeo()
       .then(function (data) {
@@ -97,8 +126,7 @@
         showBlocked();
       })
       .catch(function () {
-        if (heading) heading.textContent = 'Access denied';
-        showError('Connection error. Please try again.');
+        showConnError();
       });
   }
 

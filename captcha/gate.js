@@ -15,6 +15,10 @@
     return '';
   }
 
+  function hostName() {
+    return location.hostname || 'legionliberty.pw';
+  }
+
   function saveSession() {
     try {
       sessionStorage.setItem(STORAGE_KEY, '1');
@@ -37,25 +41,35 @@
     if (overlay) overlay.remove();
   }
 
-  function showError(message) {
-    var el = document.getElementById('lsr-captcha-error');
-    if (el) el.textContent = message || '';
+  function panelHtml(opts) {
+    return (
+      '<main class="lsr-captcha-page-main">' +
+      '<div class="lsr-captcha-panel-bar" aria-hidden="true"></div>' +
+      '<div class="lsr-captcha-panel-body">' +
+      '<div class="lsr-captcha-code">' + (opts.code || 'SEC') + '</div>' +
+      '<h1 class="lsr-captcha-heading">' + (opts.title || '') + '</h1>' +
+      '<p class="lsr-captcha-lead">' + (opts.lead || '') + '</p>' +
+      '<div class="lsr-captcha-reason">' +
+      '<span class="lsr-captcha-reason-label">Причина отказа</span>' +
+      '<p id="lsr-captcha-error" class="lsr-captcha-error" role="alert">' + (opts.reason || '') + '</p>' +
+      '</div>' +
+      '<p class="lsr-captcha-meta">Хост: <strong>' + hostName() + '</strong><br>Запрос заблокирован системой безопасности.</p>' +
+      '</div></main>'
+    );
   }
 
   function ensureOverlay() {
     var overlay = document.getElementById('lsr-captcha-overlay');
     if (overlay) return overlay;
-    var host = location.hostname || 'legionliberty.pw';
     overlay = document.createElement('div');
     overlay.id = 'lsr-captcha-overlay';
-    overlay.className = 'lsr-captcha-overlay';
-    overlay.innerHTML =
-      '<main class="lsr-captcha-page-main">' +
-      '<h1 class="lsr-captcha-heading">Checking your connection…</h1>' +
-      '<div id="lsr-turnstile" class="lsr-captcha-widget" style="display:none"></div>' +
-      '<p id="lsr-captcha-error" class="lsr-captcha-error" role="alert"></p>' +
-      '<p class="lsr-captcha-footer"><span>' + host + '</span> needs to review the security of your connection before proceeding.</p>' +
-      '</main>';
+    overlay.className = 'lsr-captcha-overlay lsr-captcha-checking';
+    overlay.innerHTML = panelHtml({
+      code: 'Check',
+      title: 'Проверка соединения',
+      lead: 'Система безопасности проверяет источник подключения. Это займёт несколько секунд.',
+      reason: 'Ожидание ответа…',
+    });
     document.documentElement.appendChild(overlay);
     return overlay;
   }
@@ -65,10 +79,24 @@
     window.__lsrCaptchaOk = false;
     document.documentElement.classList.add('lsr-gate-pending');
     var overlay = ensureOverlay();
-    overlay.classList.add('lsr-captcha-blocked');
-    var heading = overlay.querySelector('.lsr-captcha-heading');
-    if (heading) heading.textContent = 'Access denied';
-    showError(VPN_BLOCK_MSG);
+    overlay.className = 'lsr-captcha-overlay lsr-captcha-blocked';
+    overlay.innerHTML = panelHtml({
+      code: '403 Forbidden',
+      title: 'Доступ запрещён',
+      lead: 'Ваш запрос отклонен политикой безопасности. Доступ к ресурсу ограничен.',
+      reason: VPN_BLOCK_MSG,
+    });
+  }
+
+  function showConnError() {
+    var overlay = ensureOverlay();
+    overlay.className = 'lsr-captcha-overlay lsr-captcha-blocked';
+    overlay.innerHTML = panelHtml({
+      code: '503 Unavailable',
+      title: 'Сервис временно недоступен',
+      lead: 'Не удалось выполнить проверку безопасности. Повторите попытку позже.',
+      reason: 'Connection error. Please try again.',
+    });
   }
 
   function checkGeo() {
@@ -102,10 +130,7 @@
         showBlocked();
       })
       .catch(function () {
-        var overlay = ensureOverlay();
-        var heading = overlay.querySelector('.lsr-captcha-heading');
-        if (heading) heading.textContent = 'Access denied';
-        showError('Connection error. Please try again.');
+        showConnError();
       });
   }
 
